@@ -52,6 +52,11 @@ module "inventory_reserved" {
   }
 }
 
+#----------------------------------
+# Moved blocks session to update the state file without replacing the existing Queues (no name changes)
+#----------------------------------
+
+
 moved {
   from = aws_sqs_queue.orders_created
   to = module.orders_created.aws_sqs_queue.main
