@@ -10,11 +10,14 @@
 #   payments-captured / payments-captured-dlq
 #   inventory-reserved / inventory-reserved-dlq
 
-# ---------------------------------------------------------------------------
-# orders-created
-# ---------------------------------------------------------------------------
-resource "aws_sqs_queue" "orders_created_dlq" {
-  name = "${terraform.workspace}-orders-created-dlq"
+
+# ------------------------------------------------------------
+
+module "orders_created" {
+  source = "./modules/sqs_queue"
+
+  queue_name = "${terraform.workspace}-orders-created"
+  max_receive_count = 5
 
   tags = {
     Service     = "checkout"
@@ -23,13 +26,24 @@ resource "aws_sqs_queue" "orders_created_dlq" {
   }
 }
 
-resource "aws_sqs_queue" "orders_created" {
-  name = "${terraform.workspace}-orders-created"
+module "payments_captured" {
+  source = "./modules/sqs_queue"
 
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.orders_created_dlq.arn
-    maxReceiveCount     = 5
-  })
+  queue_name = "${terraform.workspace}-payments-captured"
+  max_receive_count = 3
+
+  tags = {
+      Service     = "checkout"
+      Environment = terraform.workspace
+      CostCenter  = "ecom-checkout"
+  }
+}
+
+module "inventory_reserved" {
+  source = "./modules/sqs_queue"
+
+  queue_name = "${terraform.workspace}-inventory-reserved"
+  max_receive_count = 10
 
   tags = {
     Service     = "checkout"
@@ -38,55 +52,32 @@ resource "aws_sqs_queue" "orders_created" {
   }
 }
 
-# ---------------------------------------------------------------------------
-# payments-captured
-# ---------------------------------------------------------------------------
-resource "aws_sqs_queue" "payments_captured_dlq" {
-  name = "${terraform.workspace}-payments-captured-dlq"
-
-  tags = {
-    Service     = "checkout"
-    Environment = terraform.workspace
-  }
+moved {
+  from = aws_sqs_queue.orders_created
+  to = module.orders_created.aws_sqs_queue.main
 }
 
-resource "aws_sqs_queue" "payments_captured" {
-  name = "${terraform.workspace}-payments-captured"
-
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.payments_captured_dlq.arn
-    maxReceiveCount     = 3
-  })
-
-  tags = {
-    Service     = "checkout"
-    Environment = terraform.workspace
-  }
+moved {
+  from = aws_sqs_queue.orders_created_dlq
+  to = module.orders_created.aws_sqs_queue.dlq
 }
 
-# ---------------------------------------------------------------------------
-# inventory-reserved
-# ---------------------------------------------------------------------------
-resource "aws_sqs_queue" "inventory_reserved_dlq" {
-  name = "${terraform.workspace}-inventory-reserved-dlq"
-
-  tags = {
-    Service     = "checkout"
-    Environment = terraform.workspace
-  }
+moved {
+  from = aws_sqs_queue.payments_captured
+  to = module.payments_captured.aws_sqs_queue.main
 }
 
-resource "aws_sqs_queue" "inventory_reserved" {
-  name = "${terraform.workspace}-inventory-reserved"
+moved {
+  from = aws_sqs_queue.payments_captured_dlq
+  to = module.payments_captured.aws_sqs_queue.dlq
+}
 
-  # NOTE: redrive target points at the orders DLQ here.
-  redrive_policy = jsonencode({
-    deadLetterTargetArn = aws_sqs_queue.orders_created_dlq.arn
-    maxReceiveCount     = 10
-  })
+moved {
+  from = aws_sqs_queue.inventory_reserved
+  to = module.inventory_reserved.aws_sqs_queue.main
+}
 
-  tags = {
-    Service     = "checkout"
-    Environment = terraform.workspace
-  }
+moved {
+  from = aws_sqs_queue.inventory_reserved_dlq
+  to = module.inventory_reserved.aws_sqs_queue.dlq
 }
